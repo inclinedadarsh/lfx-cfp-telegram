@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 
 from dotenv import load_dotenv, find_dotenv
@@ -12,6 +13,8 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+
+from cfp_scraper import fetch_cfp_events
 
 load_dotenv(find_dotenv())
 
@@ -39,6 +42,44 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(update.message.text)
 
 
+async def cfp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.message:
+        return
+    await update.message.reply_text("Fetching open CFPs... This may take a moment.")
+    try:
+        events = await asyncio.to_thread(fetch_cfp_events)
+    except Exception as exc:  # noqa: BLE001 broad to surface to user
+        logger.exception("Failed to fetch CFP events")
+        await update.message.reply_text(f"Error fetching CFPs: {exc}")
+        return
+
+    if not events:
+        await update.message.reply_text("No open CFPs found.")
+        return
+
+    # Build a concise response; Telegram has message limits, keep it compact
+    lines = []
+    for ev in events[:15]:  # cap to avoid overly long messages
+        parts = [f"• {ev.title}"]
+        if ev.date:
+            parts.append(f"Date: {ev.date}")
+        if ev.location:
+            parts.append(f"Location: {ev.location}")
+        if ev.event_type:
+            parts.append(f"Type: {ev.event_type}")
+        if ev.status:
+            parts.append(f"Status: {ev.status}")
+        parts.append(f"Link: {ev.link}")
+        lines.append(" | ".join(parts))
+
+    text = "\n\n".join(lines)
+    await update.message.reply_text(text)
+
+
+async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.exception("Unhandled error while processing update: %s", update)
+
+
 def main() -> None:
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
@@ -48,7 +89,9 @@ def main() -> None:
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("cfp", cfp))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+    application.add_error_handler(on_error)
 
     logger.info("Bot starting with polling...")
     application.run_polling(close_loop=False)
