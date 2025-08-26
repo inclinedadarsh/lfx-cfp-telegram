@@ -11,8 +11,6 @@ from telegram.ext import (
     CommandHandler,
     ContextTypes,
     CallbackQueryHandler,
-    MessageHandler,
-    filters,
 )
 
 from cfp_scraper import fetch_cfp_events, fetch_event_details
@@ -28,19 +26,17 @@ logger = logging.getLogger(__name__)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Hi! I am alive. Send me any message and I'll echo it back."
+        "Welcome! Use /cfp to list open CFPs. Tap a button to fetch details."
     )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Available commands: /start, /help. I also echo your text."
+        "Commands:\n"
+        "- /start: Quick intro.\n"
+        "- /cfp: Show open Linux Foundation CFPs with buttons.\n"
+        "- /help: This help message."
     )
-
-
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message and update.message.text:
-        await update.message.reply_text(update.message.text)
 
 
 async def cfp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -105,7 +101,6 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("cfp", cfp))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
     application.add_error_handler(on_error)
 
     async def on_cfp_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
